@@ -46,22 +46,7 @@ The `run()` method drives the entire cognitive cycle:
 
 ```mermaid
 flowchart LR
-    GATHER --> THINK
-    THINK --> ACT
-    ACT --> OBSERVE
-    OBSERVE --> THINK
-    THINK --> VERIFY
-    VERIFY --> TERMINATE
-    VERIFY --> REFINE
-    REFINE --> THINK
-```
-
-### State Machine
-
-8 cognitive states form the complete agent lifecycle:
-
-```mermaid
-graph LR
+    Input["Prompt"] --> GATHER
     GATHER --> THINK
     THINK --> ACT
     ACT --> OBSERVE
@@ -72,7 +57,10 @@ graph LR
     REFINE --> THINK
     REFLECT -.-> THINK
     REFLECT -.-> TERMINATE
+    TERMINATE --> Output["Result"]
 ```
+
+Agent states cycle between **GATHER → THINK → ACT → OBSERVE → THINK → VERIFY → TERMINATE**. REFLECT and REFINE provide self-correction loops. REFLECT can be injected at any point as an urgent state (dashed arrows).
 
 ---
 
