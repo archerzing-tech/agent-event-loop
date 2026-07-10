@@ -31,19 +31,13 @@
 ### Layered Design
 
 ```mermaid
-graph TB
-    In["User Input"]
-    Scheduler["Agent-Event-Loop Core<br/>(Queue + Budget + Hooks)"]
-    Exec["Execution Layer<br/>(LLM / Tool / Judge / Reflect)"]
-    Out["Final Output"]
-    Obs["Observability<br/>(Events / WebSocket)"]
+graph LR
+    Input["User Input"]
+    Loop["Agent-Event-Loop"]
+    Output["Final Result"]
 
-    In --> Scheduler
-    Scheduler --> Exec
-    Exec -.->|"enqueue next state"| Scheduler
-    Exec --> Out
-    Scheduler -.-> Obs
-    Exec -.-> Obs
+    Input --> Loop
+    Loop --> Output
 ```
 
 ### Main Loop Flow
@@ -51,26 +45,15 @@ graph TB
 The `run()` method drives the entire cognitive cycle:
 
 ```mermaid
-flowchart TD
-    Start([Prompt]) --> Enq["Enqueue GATHER"]
-    Enq --> Loop["🔄 Main Loop"]
-
-    Loop --> Budget{"Budget OK?"}
-    Budget -->|"No"| Finish(["Return Result"])
-    Budget -->|"Yes"| Urgent["Process all urgent states<br/>(REFLECT / TERMINATE)"]
-    Urgent --> Dequeue["Dequeue normal state"]
-
-    Dequeue -->|"empty"| EmptyCheck{"Has output?"}
-    EmptyCheck -->|"yes"| InjectTerm["Inject TERMINATE"]
-    EmptyCheck -->|"no"| InjectThink["Inject THINK to advance"]
-    InjectTerm --> Loop
-    InjectThink --> Loop
-
-    Dequeue -->|"got state"| Execute["Execute state<br/>(GATHER / THINK / ACT / ...)"]
-    Execute --> EnqueueNext["Enqueue next state"]
-    EnqueueNext --> TermCheck{"Should stop?"}
-    TermCheck -->|"yes"| Finish(["Return Result"])
-    TermCheck -->|"no"| Loop
+flowchart LR
+    GATHER --> THINK
+    THINK --> ACT
+    ACT --> OBSERVE
+    OBSERVE --> THINK
+    THINK --> VERIFY
+    VERIFY --> TERMINATE
+    VERIFY --> REFINE
+    REFINE --> THINK
 ```
 
 ### State Machine
@@ -78,25 +61,17 @@ flowchart TD
 8 cognitive states form the complete agent lifecycle:
 
 ```mermaid
-stateDiagram-v2
-    [*] --> GATHER
+graph LR
     GATHER --> THINK
-
-    THINK --> ACT : has tool calls
-    THINK --> VERIFY : no tool calls
-
+    THINK --> ACT
     ACT --> OBSERVE
-    OBSERVE --> THINK : success
-    OBSERVE --> REFLECT : error
-
-    VERIFY --> TERMINATE : passed
-    VERIFY --> REFINE : failed
-
+    OBSERVE --> THINK
+    THINK --> VERIFY
+    VERIFY --> TERMINATE
+    VERIFY --> REFINE
     REFINE --> THINK
-    REFLECT --> THINK : fixable
-    REFLECT --> TERMINATE : not fixable
-
-    TERMINATE --> [*]
+    REFLECT -.-> THINK
+    REFLECT -.-> TERMINATE
 ```
 
 ---
