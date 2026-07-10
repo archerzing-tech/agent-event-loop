@@ -135,9 +135,19 @@ stateDiagram-v2
 
     TERMINATE --> [*] : Return final output
 
-    note right of ACT : Smart grouping:\nread-only parallel,\nwrites serial
-    note right of REFLECT : Injected as URGENT,\nalways processed first
-    note right of VERIFY : LLM-as-Judge evaluates\noutput quality
+    note right of ACT
+        Smart grouping:
+        read-only parallel,
+        writes serial
+    end note
+    note right of REFLECT
+        Injected as URGENT,
+        always processed first
+    end note
+    note right of VERIFY
+        LLM-as-Judge evaluates
+        output quality
+    end note
 ```
 
 ---
