@@ -1,0 +1,19 @@
+{
+  "name": "agent-event-loop",
+  "version": "2.0.0",
+  "description": "将 JavaScript Event Loop 哲学注入 AI Agent 认知架构的调度框架 (Bun + TypeScript)",
+  "type": "module",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "demo": "bun run demo/index.ts",
+    "demo:complex": "bun run demo/complex.ts",
+    "demo:ws": "bun run demo/websocket.ts",
+    "demo:openai": "bun run demo/index.openai.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "license": "MIT"
+}
