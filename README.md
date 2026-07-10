@@ -24,6 +24,47 @@
 | Error Propagation | **Stateful Recovery** | Errors become REFLECT states instead of crashes |
 | GC / Heap | **Session Store** | Persist conversation history and intermediate state |
 
+### Event Loop vs Agent-Event-Loop
+
+The diagram below maps each phase of the JavaScript Event Loop to its counterpart in the Agent-Event-Loop architecture. The two systems share the same message-driven, priority-queue pattern — adapted from browser events to cognitive states.
+
+```mermaid
+flowchart LR
+    subgraph JS["🟡 JavaScript Event Loop"]
+        direction TB
+        JS_IO["Macrotask Queue<br/>(I/O, click, setTimeout)"]
+        JS_Promise["Microtask Queue<br/>(Promise callbacks,<br/>queueMicrotask)"]
+        JS_Exec["Execute Task<br/>(Call stack)"]
+        JS_Error["Error Handling<br/>(try/catch / crash)"]
+        JS_Render["Render / Paint"]
+        
+        JS_IO --> JS_Exec
+        JS_Promise -.->|"drain before<br/>next macrotask"| JS_Exec
+        JS_Exec --> JS_Error
+        JS_Error --> JS_Render
+    end
+
+    subgraph AEL["🔵 Agent-Event-Loop"]
+        direction TB
+        AEL_NQ["Normal State Queue<br/>(GATHER, THINK, ACT, ...)"]
+        AEL_UQ["Urgent State Queue<br/>(REFLECT, TERMINATE)"]
+        AEL_Exec["Execute State<br/>(Executor: LLM / Tool / Judge)"]
+        AEL_Error["Error Recovery<br/>(converted to REFLECT state)"]
+        AEL_Output["Streaming Output<br/>(token via WebSocket)"]
+        
+        AEL_NQ --> AEL_Exec
+        AEL_UQ -.->|"process before<br/>normal state"| AEL_Exec
+        AEL_Exec --> AEL_Error
+        AEL_Error --> AEL_Output
+    end
+
+    JS_IO -.->|"🧩 queue"| AEL_NQ
+    JS_Promise -.->|"⚡ priority drain"| AEL_UQ
+    JS_Exec -.->|"⚙️ execute"| AEL_Exec
+    JS_Error -.->|"🩹 error"| AEL_Error
+    JS_Render -.->|"📤 output"| AEL_Output
+```
+
 ---
 
 ## Architecture
