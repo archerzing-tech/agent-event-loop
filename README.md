@@ -32,41 +32,18 @@
 
 ```mermaid
 graph TB
-    subgraph Application["Application Layer"]
-        A["CLI / HTTP API / WebSocket Client"]
-    end
+    In["User Input"]
+    Scheduler["Agent-Event-Loop Core<br/>(Queue + Budget + Hooks)"]
+    Exec["Execution Layer<br/>(LLM / Tool / Judge / Reflect)"]
+    Out["Final Output"]
+    Obs["Observability<br/>(Events / WebSocket)"]
 
-    subgraph Scheduler["Core Scheduler"]
-        B["State Queue<br/>(Dual: Normal + Urgent)"]
-        C["Budget Manager<br/>(Turns / Tokens / Time / Iterations)"]
-        D["Hook Manager<br/>(beforeState / beforeLLM / ...)"]
-    end
-
-    subgraph Executors["Execution Layer"]
-        E["🧠 LLM Executor<br/>(THINK / VERIFY / REFLECT)"]
-        F["🔧 Tool Executor<br/>(ACT: parallel read-only, serial writes)"]
-        G["✅ Verifier / Judge<br/>(LLM-as-Judge)"]
-        H["🪞 Reflector / Self-Correction<br/>(error recovery & analysis)"]
-    end
-
-    subgraph Persistence["Persistence & Observability"]
-        I["💾 SQLite Checkpoints<br/>(every N turns or after ACT)"]
-        J["📁 File Snapshots<br/>(Bun.write, disaster recovery)"]
-        K["🌐 WebSocket Bridge<br/>(§6.2: live event streaming)"]
-    end
-
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    E --> F
-    F --> G
-    G -.->|"refine / reflect"| B
-    G --> K
-    H --> B
-    B -.->|"persist"| I
-    B -.->|"snapshot"| J
-    K -.->|"broadcast events"| A
+    In --> Scheduler
+    Scheduler --> Exec
+    Exec -.->|"enqueue next state"| Scheduler
+    Exec --> Out
+    Scheduler -.-> Obs
+    Exec -.-> Obs
 ```
 
 ### Main Loop Flow
@@ -75,36 +52,25 @@ The `run()` method drives the entire cognitive cycle:
 
 ```mermaid
 flowchart TD
-    Start([Initial Prompt]) --> EnqGATHER["Enqueue GATHER(state)"]
-    EnqGATHER --> LoopStart{"Main Loop"}
+    Start([Prompt]) --> Enq["Enqueue GATHER"]
+    Enq --> Loop["🔄 Main Loop"]
 
-    LoopStart --> CheckBudget{"Budget Exhausted?<br/>(turns / tokens / time / iterations)"}
-    CheckBudget -->|"Yes"| ForceTerm["Clear Queue<br/>Enqueue TERMINATE(urgent)"]
-    CheckBudget -->|"No"| ProcessUrgent{"Urgent Queue<br/>Non-Empty?"}
+    Loop --> Budget{"Budget OK?"}
+    Budget -->|"No"| Finish(["Return Result"])
+    Budget -->|"Yes"| Urgent["Process all urgent states<br/>(REFLECT / TERMINATE)"]
+    Urgent --> Dequeue["Dequeue normal state"]
 
-    ProcessUrgent -->|"Yes"| ExecUrgent["Execute Urgent State<br/>(REFLECT / TERMINATE)"]
-    ExecUrgent --> CheckTerm{"Terminate?"}
-    CheckTerm -->|"Yes"| Finish(["🎯 Return Result"])
-    CheckTerm -->|"No"| ProcessUrgent
+    Dequeue -->|"empty"| EmptyCheck{"Has output?"}
+    EmptyCheck -->|"yes"| InjectTerm["Inject TERMINATE"]
+    EmptyCheck -->|"no"| InjectThink["Inject THINK to advance"]
+    InjectTerm --> Loop
+    InjectThink --> Loop
 
-    ProcessUrgent -->|"No"| Dequeue["Dequeue Normal State"]
-
-    Dequeue -->|"Empty + has Output"| EnqTerm["Enqueue TERMINATE"]
-    Dequeue -->|"Empty + idle &gt; 3"| EnqStall["Enqueue TERMINATE<br/>(reason: stall)"]
-    Dequeue -->|"Empty + no Output"| EnqThink["Enqueue THINK<br/>(advance conversation)"]
-
-    EnqTerm --> LoopStart
-    EnqStall --> LoopStart
-    EnqThink --> LoopStart
-
-    Dequeue -->|"Got State"| Execute["Execute State<br/>(via Executors[type])"]
-    Execute --> Yield["yieldControl()<br/>(queueMicrotask)"]
-    Yield --> CheckTerm2{"Terminate?"}
-
-    CheckTerm2 -->|"Yes"| Finish
-    CheckTerm2 -->|"No"| LoopStart
-
-    ForceTerm --> ProcessUrgent
+    Dequeue -->|"got state"| Execute["Execute state<br/>(GATHER / THINK / ACT / ...)"]
+    Execute --> EnqueueNext["Enqueue next state"]
+    EnqueueNext --> TermCheck{"Should stop?"}
+    TermCheck -->|"yes"| Finish(["Return Result"])
+    TermCheck -->|"no"| Loop
 ```
 
 ### State Machine
@@ -113,41 +79,24 @@ flowchart TD
 
 ```mermaid
 stateDiagram-v2
-    [*] --> GATHER : Initial Prompt
-    GATHER --> THINK : Context compressed
+    [*] --> GATHER
+    GATHER --> THINK
 
-    THINK --> ACT : tool_calls present
-    THINK --> VERIFY : no tool_calls
+    THINK --> ACT : has tool calls
+    THINK --> VERIFY : no tool calls
 
-    ACT --> OBSERVE : Tools executed
+    ACT --> OBSERVE
+    OBSERVE --> THINK : success
+    OBSERVE --> REFLECT : error
 
-    OBSERVE --> THINK : Results ok, continue
-    OBSERVE --> REFLECT : Tool error detected
+    VERIFY --> TERMINATE : passed
+    VERIFY --> REFINE : failed
 
-    VERIFY --> TERMINATE : Passed (LLM-as-Judge)
-    VERIFY --> REFINE : Failed & retries < 3
-    VERIFY --> TERMINATE : Failed & retries >= 3
+    REFINE --> THINK
+    REFLECT --> THINK : fixable
+    REFLECT --> TERMINATE : not fixable
 
-    REFINE --> THINK : Reformulate prompt
-
-    REFLECT --> THINK : Can fix, re-think
-    REFLECT --> TERMINATE : Cannot fix, has output
-
-    TERMINATE --> [*] : Return final output
-
-    note right of ACT
-        Smart grouping:
-        read-only parallel,
-        writes serial
-    end note
-    note right of REFLECT
-        Injected as URGENT,
-        always processed first
-    end note
-    note right of VERIFY
-        LLM-as-Judge evaluates
-        output quality
-    end note
+    TERMINATE --> [*]
 ```
 
 ---
