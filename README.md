@@ -8,7 +8,7 @@
 
 ---
 
-[**简体中文**](./README.zh-CN.md) · [Design Document (中文)](./Agent-Event-Loop%20设计文档.md)
+[**简体中文**](./README.zh-CN.md) · [Design Document (EN)](./DESIGN.md) · [设计文档 (中文)](./Agent-Event-Loop%20设计文档.md)
 
 ---
 
