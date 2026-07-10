@@ -60,7 +60,7 @@ flowchart LR
     TERMINATE --> Output["Result"]
 ```
 
-Agent states cycle between **GATHER → THINK → ACT → OBSERVE → THINK → VERIFY → TERMINATE**. REFLECT and REFINE provide self-correction loops. REFLECT can be injected at any point as an urgent state (dashed arrows).
+Agent states cycle between **GATHER → THINK → ACT → OBSERVE → THINK → VERIFY → TERMINATE**, with **REFINE** and **REFLECT** providing self-correction loops. REFLECT can be injected at any point as an urgent state (dashed arrows).
 
 ---
 
