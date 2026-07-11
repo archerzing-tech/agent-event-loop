@@ -119,6 +119,8 @@ export interface AgentEventLoopConfig {
   hooks?: AgentHook[];
   /** 可选的自定义 Token 估算器，默认使用字符 / 4 的粗略估算。 */
   tokenEstimator?: TokenEstimator;
+  /** LLM 调用超时毫秒数，默认 120000（2 分钟）。 */
+  llmTimeoutMs?: number;
 }
 
 /** 运行结果。 */

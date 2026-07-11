@@ -23,6 +23,10 @@ export class EventBus implements IEventBus {
     this.listeners.get(type)!.add(handler);
   }
 
+  off(type: string, handler: EventHandler): void {
+    this.listeners.get(type)?.delete(handler);
+  }
+
   onAny(handler: EventHandler): void {
     this.anyListeners.add(handler);
   }

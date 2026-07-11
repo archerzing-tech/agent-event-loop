@@ -120,5 +120,7 @@ export class BudgetManager {
     this._turns = snap.turns;
     this._iterations = snap.iterations;
     this._tokens = snap.tokens;
+    // 补偿已消耗的时间：将 startTime 回拨，使 elapsedMs 从快照值继续
+    this.startTime = Date.now() - snap.elapsedMs;
   }
 }

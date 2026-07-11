@@ -13,7 +13,7 @@
  */
 import { Glob } from 'bun';
 import {
-  AgentEventLoop,
+  AgentHarness,
   MockLLMProvider,
   type AgentEventLoopConfig,
   type ToolResult,
@@ -78,7 +78,7 @@ function buildConfig(sessionId: string): AgentEventLoopConfig {
 }
 
 /** 漂亮的终端事件追踪。 */
-function attachTrace(agent: AgentEventLoop) {
+function attachTrace(agent: AgentHarness) {
   const icons: Record<string, string> = {
     LoopStart: '🚀',
     StateStart: '▶️ ',
@@ -104,14 +104,14 @@ function attachTrace(agent: AgentEventLoop) {
 
 async function main() {
   console.log('===== Demo 1: 完整认知循环 + 工具调用 =====');
-  const agent = new AgentEventLoop(buildConfig('demo-1'));
+  const agent = new AgentHarness(buildConfig('demo-1'));
   attachTrace(agent);
 
   const result = await agent.run('请使用 calculator 计算 (3 + 4) * 2 并给出结论');
   printResult(result);
 
   console.log('\n===== Demo 2: 外部硬中断 =====');
-  const agent2 = new AgentEventLoop(buildConfig('demo-2'));
+  const agent2 = new AgentHarness(buildConfig('demo-2'));
   attachTrace(agent2);
   // 启动后立刻硬中断，验证队列清空 + 立即终止
   const p = agent2.run('请规划一次长途旅行（被中断）');
@@ -126,14 +126,14 @@ async function main() {
   console.log(`  检查点 DB: ./data/checkpoints.sqlite`);
 
   console.log('\n===== Demo 4: 崩溃恢复（同 sessionId 续跑） =====');
-  const resumed = new AgentEventLoop(buildConfig('demo-1'));
+  const resumed = new AgentHarness(buildConfig('demo-1'));
   attachTrace(resumed);
   const r4 = await resumed.run('继续');
   console.log(`  restored=${r4.restored} turns=${r4.turns}`);
   printResult(r4);
 }
 
-function printResult(r: Awaited<ReturnType<AgentEventLoop['run']>>) {
+function printResult(r: Awaited<ReturnType<AgentHarness['run']>>) {
   console.log('\n----- RunResult -----');
   console.log(JSON.stringify(
     {

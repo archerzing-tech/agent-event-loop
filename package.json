@@ -1,6 +1,6 @@
 {
   "name": "agent-event-loop",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "将 JavaScript Event Loop 哲学注入 AI Agent 认知架构的调度框架 (Bun + TypeScript)",
   "type": "module",
   "module": "src/index.ts",

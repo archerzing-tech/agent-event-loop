@@ -36,7 +36,8 @@ describe('HookManager — beforeState', () => {
     };
     const hm = new HookManager([hook]);
     const result = await hm.beforeState(dummyState());
-    expect(result.data.modified).toBe(true);
+    expect(result).not.toBe('abort');
+    expect((result as AgentState).data.modified).toBe(true);
   });
 
   it('aborts when hook returns "abort"', async () => {
@@ -64,7 +65,8 @@ describe('HookManager — beforeState', () => {
     const hm = new HookManager([hookA, hookB]);
     const result = await hm.beforeState(dummyState());
     expect(log).toEqual(['a', 'b']);
-    expect(result.data.step).toBe('b'); // last wins
+    expect(result).not.toBe('abort');
+    expect((result as AgentState).data.step).toBe('b'); // last wins
   });
 
   it('stops chaining on abort', async () => {
@@ -109,7 +111,8 @@ describe('HookManager — beforeLLM', () => {
     };
     const hm = new HookManager([hook]);
     const result = await hm.beforeLLM(dummyLLMCtx());
-    expect(result.request.temperature).toBe(0.5);
+    expect(result).not.toBe('abort');
+    expect((result as LLMContext).request.temperature).toBe(0.5);
   });
 
   it('returns "abort" to cancel LLM call', async () => {
@@ -138,8 +141,10 @@ describe('HookManager — beforeLLM', () => {
     const hm = new HookManager([hookA, hookB]);
     const result = await hm.beforeLLM(dummyLLMCtx());
     expect(log).toEqual(['a', 'b']);
-    expect(result.request.temperature).toBe(0.1);
-    expect(result.request.messages).toHaveLength(2);
+    expect(result).not.toBe('abort');
+    const llmCtx = result as LLMContext;
+    expect(llmCtx.request.temperature).toBe(0.1);
+    expect(llmCtx.request.messages).toHaveLength(2);
   });
 });
 
@@ -150,7 +155,8 @@ describe('HookManager — beforeTool', () => {
     };
     const hm = new HookManager([hook]);
     const result = await hm.beforeTool(dummyToolCtx());
-    expect(result.call.name).toBe('search');
+    expect(result).not.toBe('deny');
+    expect((result as ToolContext).call.name).toBe('search');
   });
 
   it('denies tool execution', async () => {
@@ -297,8 +303,8 @@ describe('HookManager — mixed hooks (realistic scenarios)', () => {
 
     // calculator passes through
     const calcCall: ToolContext = { call: { id: 'c2', name: 'calculator', params: {} } };
-    const result = await hm.beforeTool(calcCall);
-    expect(result).toEqual(calcCall);
+    const calcResult = await hm.beforeTool(calcCall);
+    expect(calcResult).toEqual(calcCall);
     expect(auditLog).toEqual(['tool:search', 'tool:calculator']);
   });
 
@@ -316,10 +322,12 @@ describe('HookManager — mixed hooks (realistic scenarios)', () => {
     const hm = new HookManager([stateModifier, llmModifier]);
 
     const stateResult = await hm.beforeState(dummyState());
-    expect(stateResult.data.enriched).toBe(true);
+    expect(stateResult).not.toBe('abort');
+    expect((stateResult as AgentState).data.enriched).toBe(true);
 
     const llmResult = await hm.beforeLLM(dummyLLMCtx());
-    expect(llmResult.request.temperature).toBe(0.3);
+    expect(llmResult).not.toBe('abort');
+    expect((llmResult as LLMContext).request.temperature).toBe(0.3);
   });
 });
 

@@ -9,7 +9,7 @@
  * 真实场景下，浏览器或 wscat 等客户端连接同一 URL 即可观察。
  */
 import {
-  AgentEventLoop,
+  AgentHarness,
   type AgentEventLoopConfig,
   type LLMProvider,
   type LLMRequest,
@@ -52,7 +52,7 @@ const config: AgentEventLoopConfig = {
   verbose: false,
 };
 
-const agent = new AgentEventLoop(config);
+const agent = new AgentHarness(config);
 const url = `ws://127.0.0.1:${agent.wsPort}/agent-ws?sessionId=ws-demo`;
 
 console.log(`🔌 WebSocket bridge listening on ${url}\n`);

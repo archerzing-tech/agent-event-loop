@@ -1,4 +1,6 @@
-export { AgentEventLoop } from './core/AgentEventLoop.ts';
+export { AgentHarness, AgentEventLoop } from './core/AgentEventLoop.ts';
+export { AgentLoop } from './agentLoop/AgentLoop.ts';
+export type { LoopInput, LoopOutput } from './agentLoop/AgentLoop.ts';
 export { StateQueue } from './core/StateQueue.ts';
 export { BudgetManager, estimateTokensByChar, estimateTokensForChinese } from './core/BudgetManager.ts';
 export { EventBus, Events } from './core/EventBus.ts';

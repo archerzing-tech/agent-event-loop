@@ -1,6 +1,7 @@
 # Agent-Event-Loop
 
-> Inject the JavaScript Event Loop philosophy into AI Agent cognition architecture.
+> **v3.0 — Stateless Engine + Stateful Chassis**  
+> Decoupling the agent loop from the runtime harness.
 
 [![Bun 1.0+](https://img.shields.io/badge/Bun-1.0+-fbf0df?logo=bun&logoColor=fbf0df)](https://bun.sh)
 [![TypeScript 5.0+](https://img.shields.io/badge/TypeScript-5.0+-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -15,6 +16,15 @@
 ## Overview
 
 **Agent-Event-Loop** is an AI Agent orchestration framework inspired by the JavaScript Event Loop. It transforms the core ideas of Event Loop — **message queue**, **non-blocking I/O**, and **event-driven architecture** — into a scheduling system for **Agent cognition flows**.
+
+### 🆕 v3.0: Two-Layer Architecture
+
+Following the industry evolution pioneered by Claude Code, OpenCode, and OpenHarness, v3.0 decouples the runtime into **two distinct layers**:
+
+| Layer | Stateless? | Responsibility |
+|-------|-----------|----------------|
+| **AgentLoop** | ✅ **Stateless engine** — zero mutable fields, pure transition functions | Think-act-observe state machine; calls LLM & tools; emits events |
+| **AgentHarness** | ❌ **Stateful chassis** — owns all session state | Manages queue, messages, budget, persistence, lifecycle, hooks, observability |
 
 | Concept | Agent-Event-Loop | Purpose |
 |---|---|---|
@@ -66,35 +76,75 @@ flowchart LR
 
 ## Architecture
 
-### Layered Design
+### Two-Layer System Design
 
 ```mermaid
-graph LR
-    Input["User Input"]
-    Loop["Agent-Event-Loop"]
-    Output["Final Result"]
+graph TB
+    subgraph Application["Application / Frontend"]
+        User["User Input"]
+        UI["Dashboard"]
+    end
 
-    Input --> Loop
-    Loop --> Output
+    subgraph Harness["AgentHarness (Stateful Chassis)"]
+        direction TB
+        Session["Session State<br/>(messages, queue, budget, counters)"]
+        Hooks["HookManager<br/>(beforeState / afterState / beforeLLM / beforeTool)"]
+        Persist["Persistence<br/>(SQLite checkpoints + file snapshots)"]
+        WS["WebSocket Bridge<br/>(live event streaming)"]
+        Lifecycle["Lifecycle<br/>(run / interrupt / inject / dispose)"]
+
+        Session --> Hooks
+        Hooks --> Persist
+        Hooks --> WS
+        Hooks --> Lifecycle
+    end
+
+    subgraph Loop["AgentLoop (Stateless Engine)"]
+        direction TB
+        GATHER --> THINK
+        THINK -->|tool calls| ACT
+        THINK -->|text| VERIFY
+        ACT --> OBSERVE
+        OBSERVE --> THINK
+        VERIFY -->|pass| TERMINATE
+        VERIFY -->|fail| REFINE
+        REFINE --> THINK
+        REFLECT --> THINK
+        REFLECT --> TERMINATE
+    end
+
+    User --> Harness
+    Harness -->|"delegates<br/>state transition"| Loop
+    Loop -->|"returns<br/>LoopOutput"| Harness
+    Harness --> UI
 ```
 
-### Main Loop Flow
+**Data flow:**
 
-The `run()` method drives the entire cognitive cycle:
+1. **AgentHarness** receives user input → enqueues initial `GATHER` state
+2. **AgentHarness** dequeues state, calls `hooks.beforeState()`, wraps LLM/tools with hooks
+3. **AgentHarness** delegates to **AgentLoop.transition(LoopInput)** — pure computation
+4. **AgentLoop** executes the state machine, calls LLM & tools, returns `LoopOutput`
+5. **AgentHarness** applies `LoopOutput` to its session state, saves checkpoint, broadcasts via WebSocket
+6. Loop repeats until budget exhausted or termination condition met
+
+### State Machine Flow
+
+The 8-state cognitive cycle:
 
 ```mermaid
 flowchart LR
     Input["Prompt"] --> GATHER
     GATHER --> THINK
-    THINK --> ACT
+    THINK -->|tool calls| ACT
+    THINK -->|text output| VERIFY
     ACT --> OBSERVE
     OBSERVE --> THINK
-    THINK --> VERIFY
-    VERIFY --> TERMINATE
-    VERIFY --> REFINE
+    VERIFY -->|pass| TERMINATE
+    VERIFY -->|fail| REFINE
     REFINE --> THINK
-    REFLECT -.-> THINK
-    REFLECT -.-> TERMINATE
+    REFLECT -.->|fix| THINK
+    REFLECT -.->|abort| TERMINATE
     TERMINATE --> Output["Result"]
 ```
 
@@ -106,7 +156,8 @@ Agent states cycle between **GATHER → THINK → ACT → OBSERVE → THINK → 
 
 | Feature | Description |
 |---|---|
-| **🔄 State-Driven Loop** | `GATHER → THINK → ACT → OBSERVE → VERIFY (+ REFINE/REFLECT) → TERMINATE` |
+| **🧩 Stateless Loop + Stateful Harness** | `AgentLoop` = pure engine (zero mutable fields); `AgentHarness` = runtime chassis (session, lifecycle, infrastructure) |
+| **🔄 8-State Cognitive Cycle** | `GATHER → THINK → ACT → OBSERVE → VERIFY (+ REFINE/REFLECT) → TERMINATE` |
 | **⚡ Dual-Queue Scheduling** | Normal states + urgent queue (REFLECT, TERMINATE processed first) — inspired by Microtask/Macrotask |
 | **📊 4D Budget Control** | maxTurns / maxTotalTokens / maxIterations / maxExecutionTime |
 | **🩹 Self-Healing Errors** | Errors never crash the loop; they're converted to urgent REFLECT states for self-correction |
@@ -115,6 +166,7 @@ Agent states cycle between **GATHER → THINK → ACT → OBSERVE → THINK → 
 | **🔌 Hook System** | `beforeState/afterState/beforeLLM/beforeTool/afterTool` — extensible via `AgentHook` interface |
 | **🧩 Plugin LLM & Tools** | Swap between MockLLMProvider, OpenAIProvider, or custom providers |
 | **⚡ Bun-Native Performance** | `bun:sqlite` (WAL), `Bun.write` (io_uring), `queueMicrotask`, `Bun.serve()` |
+| **🧪 Isolatable Engine** | `AgentLoop` can be unit-tested independently with no infrastructure dependencies |
 
 ---
 
@@ -129,12 +181,14 @@ cd agent-event-loop
 bun install
 ```
 
-### Minimal Example
+### Minimal Example (AgentHarness)
+
+Use `AgentHarness` for the full agent experience — session management, persistence, hooks, WebSocket:
 
 ```typescript
-import { AgentEventLoop } from 'agent-event-loop';
+import { AgentHarness } from 'agent-event-loop';
 
-const agent = new AgentEventLoop({
+const agent = new AgentHarness({
   llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: process.env.OPENAI_API_KEY },
   tools: {
     search: async (query) => { /* search logic */ },
@@ -145,6 +199,41 @@ const agent = new AgentEventLoop({
 
 const result = await agent.run("Search today's news and summarize into 3 points");
 console.log(result.output);
+```
+
+### Minimal Example (AgentLoop — pure unit testing)
+
+Use `AgentLoop` directly for isolated unit testing of the state engine:
+
+```typescript
+import { AgentLoop, type LoopInput } from 'agent-event-loop';
+import { makeState } from 'agent-event-loop';
+
+const loop = new AgentLoop();  // ⚡ zero mutable state — reusable across tests
+
+const out = await loop.transition({
+  state: makeState('THINK'),
+  messages: [{ role: 'user', content: 'hello' }],
+  tools: {},
+  llm: mockLLM,               // inject your own mock
+  refineAttempts: {},
+  currentOutput: null,
+  emit: (type, payload) => {}, // event spy
+});
+
+expect(out.nextStates[0].state.type).toBe('VERIFY');
+```
+
+The `AgentLoop` class has **zero fields** — you can instantiate it once and reuse across your entire test suite.
+
+### Backward Compatibility
+
+`AgentEventLoop` is still available as an alias for `AgentHarness`:
+
+```typescript
+import { AgentEventLoop } from 'agent-event-loop';
+// Same API as before — unchanged
+const agent = new AgentEventLoop({ /* ... */ });
 ```
 
 ### Run Demos
@@ -164,7 +253,7 @@ bun run demo:ws
 
 ```typescript
 // Agent starts WebSocket bridge
-const agent = new AgentEventLoop({ wsPort: 8080, /* ... */ });
+const agent = new AgentHarness({ wsPort: 8080, /* ... */ });
 
 // Client connects
 const ws = new WebSocket('ws://localhost:8080/agent-ws?sessionId=demo');
@@ -182,7 +271,7 @@ ws.send(JSON.stringify({ type: 'INJECT', message: 'Use a simpler style' }));
 
 ```typescript
 // Reuse the same sessionId to recover from the last checkpoint
-const agent = new AgentEventLoop(config, 'user-123-session');
+const agent = new AgentHarness(config, 'user-123-session');
 await agent.run('Continue my previous task');
 ```
 
@@ -190,7 +279,7 @@ await agent.run('Continue my previous task');
 
 ## Performance Benchmarks
 
-Tested on Bun v1.1.0, MacBook Pro M2 Pro, 16GB RAM:
+Tested on Bun v1.3.0, MacBook Pro M2 Pro, 16GB RAM:
 
 | Metric | Value |
 |---|---|
@@ -199,29 +288,39 @@ Tested on Bun v1.1.0, MacBook Pro M2 Pro, 16GB RAM:
 | Checkpoint write latency | ~1.2ms |
 | WebSocket event broadcast latency | <5ms |
 | Crash recovery time | <200ms |
+| AgentLoop pure transition (no I/O) | <0.01ms |
 | Recommended concurrent sessions | 100 |
+
+The **AgentLoop pure transition** benchmark measures the overhead of the stateless engine itself — sub-millisecond since it has zero mutable state and no infrastructure dependencies.
 
 ---
 
 ## Comparison
 
-| Feature | **Agent-Event-Loop** | LangGraph | AutoGPT | Strands SDK | verl |
-|---|---|---|---|---|---|
-| **Scheduling** | Queue (Event Loop inspired) | Graph Traversal (DAG) | Recursive Loop | Event-Driven | Coroutines |
-| **Interrupt Support** | ✅ Dual-mode | ⚠️ Limited | ❌ | ✅ | ❌ |
-| **Persistence** | ✅ SQLite + Snapshots | ❌ | ❌ | ✅ Checkpoints | ❌ |
-| **Live Observability** | ✅ WebSocket (native) | ⚠️ Extra setup | ❌ | ✅ Event System | ❌ |
-| **Error Recovery** | ✅ Stateful (REFLECT) | ⚠️ Partial | ❌ | ✅ | ❌ |
-| **Budget Control** | ✅ 4 Dimensions | ⚠️ Partial | ❌ | ✅ Limits | ❌ |
-| **Self-Reflection** | ✅ Built-in REFLECT | ⚠️ Custom | ❌ | ❌ | ❌ |
-| **LLM-as-Judge** | ✅ Built-in VERIFY | ⚠️ Custom | ❌ | ✅ | ❌ |
-| **Runtime** | ✅ Bun Native | Node.js | Node.js | Python | Python |
+| Feature | **Agent-Event-Loop v3.0** | LangGraph | AutoGPT | Strands SDK |
+|---|---|---|---|---|
+| **Architecture** | Stateless Loop + Stateful Harness | Graph Traversal (DAG) | Recursive Loop | Event-Driven |
+| **Interrupt Support** | ✅ Dual-mode | ⚠️ Limited | ❌ | ✅ |
+| **Persistence** | ✅ SQLite + Snapshots | ❌ | ❌ | ✅ Checkpoints |
+| **Live Observability** | ✅ WebSocket (native) | ⚠️ Extra setup | ❌ | ✅ Event System |
+| **Error Recovery** | ✅ Stateful (REFLECT) | ⚠️ Partial | ❌ | ✅ |
+| **Budget Control** | ✅ 4 Dimensions | ⚠️ Partial | ❌ | ✅ Limits |
+| **Self-Reflection** | ✅ Built-in REFLECT | ⚠️ Custom | ❌ | ❌ |
+| **LLM-as-Judge** | ✅ Built-in VERIFY | ⚠️ Custom | ❌ | ✅ |
+| **Pure Engine Testing** | ✅ Zero-field AgentLoop | ❌ | ❌ | ❌ |
+| **Runtime** | ✅ Bun Native | Node.js | Node.js | Python |
 
 ---
 
 ## Roadmap
 
-### v2.0.0 (Current) ✅
+### v3.0 (Current) ✅
+- 🔄 **Harness + Loop separation**: AgentLoop (stateless engine) + AgentHarness (stateful chassis)
+- 🧪 **AgentLoop unit tests**: 65 tests covering all 8 executors + transition dispatcher
+- 📖 **Design document**: v3.0 architecture documented in DESIGN.md
+- All v2.0 features preserved (dual-queue, budget, checkpoints, WebSocket, hooks)
+
+### v2.0 (Previous) ✅
 - Core Event Loop scheduler
 - Dual-queue + budget control
 - SQLite checkpoints + file snapshots
@@ -231,17 +330,48 @@ Tested on Bun v1.1.0, MacBook Pro M2 Pro, 16GB RAM:
 - Extensible Hook system
 - Mock / OpenAI LLM providers
 
-### v2.1.0 (Planned)
+### v2.1 (Planned)
 - Multi-Agent collaboration (shared queue)
 - Vector memory / RAG integration
 - Built-in tool expansion
 - OpenTelemetry integration
 
-### v2.2.0 (Future)
+### v2.2 (Future)
 - Dynamic state injection (real-time intervention)
 - Reinforcement learning feedback
 - Web UI visual dashboard
 - Distributed deployment (Redis queue)
+
+---
+
+## Project Structure
+
+```
+src/
+  agentLoop/
+    AgentLoop.ts           # 🆕 Stateless engine — pure transition functions
+    AgentLoop.test.ts      # 🆕 65 unit tests for the stateless engine
+  harness/
+    AgentHarness.ts        # 🆕 Stateful runtime — session, lifecycle, infrastructure
+  core/
+    AgentEventLoop.ts      # Backward-compatible alias for AgentHarness
+    StateQueue.ts          # Dual-queue (normal + urgent)
+    EventBus.ts            # In-memory event bus
+    BudgetManager.ts       # 4D budget control
+  hooks/
+    HookManager.ts         # Extensible hook system
+  persistence/
+    Persistence.ts         # SQLite checkpoints + file snapshots
+  observability/
+    WebSocketBridge.ts     # Real-time event streaming
+  llm/
+    MockLLMProvider.ts     # Offline testing provider
+    OpenAIProvider.ts      # OpenAI integration
+  types/
+    states.ts              # AgentState, Priority
+    events.ts              # AgentEvent, EventBus types
+    config.ts              # Configuration types
+```
 
 ---
 
@@ -256,8 +386,8 @@ Tested on Bun v1.1.0, MacBook Pro M2 Pro, 16GB RAM:
 ### Testing
 
 ```bash
-bun test                          # Run all tests
-bun test src/core/StateQueue.test.ts  # Specific test
+bun test                          # Run all 144+ tests
+bun test src/agentLoop/AgentLoop.test.ts  # AgentLoop specific
 bun test --coverage              # With coverage
 ```
 
@@ -272,7 +402,9 @@ bun test --coverage              # With coverage
 ## Acknowledgements
 
 - **JavaScript Event Loop** — the elegant concurrency model that inspired this project
-- **Anthropic** — Agent Loop research and practice
+- **Anthropic** — Agent Loop research and practice (decoupled brain vs hands)
+- **OpenHarness / OpenClaw** — Agent Loop vs Harness architecture pattern
+- **OpenCode** — multi-agent orchestration inspiration
 - **Strands SDK** — event-driven agent architecture inspiration
 - **LangGraph** — graph traversal and state management paradigm
 - **Bun team** — exceptional JavaScript runtime

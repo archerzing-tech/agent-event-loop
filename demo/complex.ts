@@ -11,7 +11,7 @@
  */
 import { Glob } from 'bun';
 import {
-  AgentEventLoop,
+  AgentHarness,
   type AgentEventLoopConfig,
   type AgentHook,
   type LLMProvider,
@@ -100,7 +100,7 @@ function config(
   };
 }
 
-function runScenario(label: string, agent: AgentEventLoop, prompt: string) {
+function runScenario(label: string, agent: AgentHarness, prompt: string) {
   const seen = new Set<string>();
   agent.onAny((e) => {
     const icon: Record<string, string> = {
@@ -136,7 +136,7 @@ async function main() {
       },
       () => ({ text: JSON.stringify({ pass: true, reason: '含明确结论' }) }),
     ]);
-    await runScenario('A', new AgentEventLoop(config('A', llm)), '调研 Agent Event Loop 并核算 100*3/2');
+    await runScenario('A', new AgentHarness(config('A', llm)), '调研 Agent Event Loop 并核算 100*3/2');
   }
 
   // B. VERIFY→REFINE→VERIFY
@@ -148,7 +148,7 @@ async function main() {
       () => ({ text: '修订稿：1) 天气晴 22℃；2) 适合户外活动；3) 建议带防晒。' }),
       () => ({ text: JSON.stringify({ pass: true, reason: '结构化且完整' }) }),
     ]);
-    await runScenario('B', new AgentEventLoop(config('B', llm)), '写一段关于今天天气的总结');
+    await runScenario('B', new AgentHarness(config('B', llm)), '写一段关于今天天气的总结');
   }
 
   // C. REFLECT 自愈：工具失败
@@ -164,7 +164,7 @@ async function main() {
       },
       () => ({ text: JSON.stringify({ pass: true, reason: '完成' }) }),
     ]);
-    await runScenario('C', new AgentEventLoop(config('C', llm)), '计算 1+abc 然后修正');
+    await runScenario('C', new AgentHarness(config('C', llm)), '计算 1+abc 然后修正');
   }
 
   // D. 预算耗尽
@@ -175,7 +175,7 @@ async function main() {
       () => ({ toolCalls: [tc('search', { query: '第二跳' })] }),
       () => ({ toolCalls: [tc('search', { query: '第三跳' })] }),
     ]);
-    await runScenario('D', new AgentEventLoop(config('D', llm, { maxTurns: 2 })), '不断检索直到预算耗尽');
+    await runScenario('D', new AgentHarness(config('D', llm, { maxTurns: 2 })), '不断检索直到预算耗尽');
   }
 
   // E. 钩子拦截：限流拒绝 search
@@ -196,7 +196,7 @@ async function main() {
       () => ({ text: '基于本地知识：该主题要点为 X、Y、Z。' }),
       () => ({ text: JSON.stringify({ pass: true, reason: '完成' }) }),
     ]);
-    await runScenario('E', new AgentEventLoop(config('E', llm, { hooks: [rateLimitHook] })), '检索被限流的主题');
+    await runScenario('E', new AgentHarness(config('E', llm, { hooks: [rateLimitHook] })), '检索被限流的主题');
   }
 
   // F. 持久化 + 恢复（检查点/快照）
@@ -208,14 +208,14 @@ async function main() {
       () => ({ text: JSON.stringify({ pass: true, reason: '完成' }) }),
     ]);
     const id = 'F';
-    const first = new AgentEventLoop(config(id, llm, { checkpoint: true }));
+    const first = new AgentHarness(config(id, llm, { checkpoint: true }));
     const r1 = await runScenario('F-第一轮', first, '计算 9*9（保留检查点）');
     // 用同一 sessionId 重新构造，应从最新快照恢复
     const llm2 = new ScriptedLLMProvider([
       () => ({ text: '恢复后的补充结论。' }),
       () => ({ text: JSON.stringify({ pass: true, reason: '完成' }) }),
     ]);
-    const resumed = new AgentEventLoop(config(id, llm2, { checkpoint: true }));
+    const resumed = new AgentHarness(config(id, llm2, { checkpoint: true }));
     const r2 = await runScenario('F-恢复', resumed, '继续');
     console.log(`      restored=${r2.restored}`);
     const snaps = Array.from(new Glob('snapshot_*.json').scanSync({ cwd: `./data/${id}-snaps`, absolute: true }));

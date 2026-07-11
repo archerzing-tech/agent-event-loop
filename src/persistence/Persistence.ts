@@ -119,6 +119,7 @@ export class SqlitePersistence implements IPersistence {
   }
 
   async cleanup(sessionId: string, keep: number): Promise<void> {
+    // 1. 清理快照文件
     const files = Array.from(
       new Glob('snapshot_*.json').scanSync({ cwd: this.snapshotDir, absolute: true })
     ).filter((p) => p.includes(sessionId));
@@ -126,6 +127,13 @@ export class SqlitePersistence implements IPersistence {
     for (const f of files.slice(0, Math.max(0, files.length - keep))) {
       await Bun.file(f).delete();
     }
+    // 2. 清理旧的 SQLite 检查点行（保留最近 keep 条）
+    this.db.run(
+      `DELETE FROM checkpoints WHERE session_id = ? AND id NOT IN (
+        SELECT id FROM checkpoints WHERE session_id = ? ORDER BY created_at DESC LIMIT ?
+      )`,
+      [sessionId, sessionId, keep]
+    );
   }
 }
 
